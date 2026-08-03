@@ -9,7 +9,7 @@ import {
 import {
   LayoutDashboard, Package, Warehouse, Truck, ShoppingCart, BarChart3,
   Users, Plus, X, Search, ArrowRightLeft, AlertTriangle, Trash2, Pencil,
-  ChevronRight, Boxes, TrendingUp, TrendingDown, ClipboardList, ShieldCheck, Zap,
+  ChevronRight, Boxes, TrendingUp, TrendingDown, ClipboardList, ShieldCheck, Zap, Menu,
 } from "lucide-react";
 
 const seedWarehouses = [
@@ -144,7 +144,6 @@ function Card({ children, className = "" }) {
   );
 }
 
-/* Toast notifications */
 function Toast({ toast, onDone }) {
   React.useEffect(() => {
     const t = setTimeout(onDone, 3200);
@@ -282,7 +281,7 @@ function PendingAccessScreen({ email, onLogout }) {
 }
 
 function Storefront({ onStaffLogin }) {
-  const [deals, setDeals] = useState(null); // null = loading
+  const [deals, setDeals] = useState(null);
   const [error, setError] = useState(false);
 
   React.useEffect(() => {
@@ -379,10 +378,6 @@ function Storefront({ onStaffLogin }) {
   );
 }
 
-/* ---------------------------------------------------------------------- */
-/* Main App                                                                */
-/* ---------------------------------------------------------------------- */
-
 export default function InventoryApp() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authUser, setAuthUser] = useState(null);
@@ -393,13 +388,14 @@ export default function InventoryApp() {
   const [userRoles, setUserRoles] = useState([]);
 
   const [tab, setTab] = useState("dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [items, setItems] = useState(seedItems);
   const [warehouses] = useState(seedWarehouses);
   const [suppliers, setSuppliers] = useState(seedSuppliers);
   const [customers, setCustomers] = useState(seedCustomers);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [sales, setSales] = useState([]);
-  const [permissions, setPermissions] = useState(seedPermissions); // { [department]: [moduleKey, ...] } — Admin excluded, always full access
+  const [permissions, setPermissions] = useState(seedPermissions);
   const [audit, setAudit] = useState([
     { id: uid("a"), time: nowStamp(), user: "Admin", action: "System initialized with starting inventory." },
   ]);
@@ -407,9 +403,6 @@ export default function InventoryApp() {
   const [ready, setReady] = useState(false);
   const [saveError, setSaveError] = useState(false);
 
-  // Watch sign-in state. The first person ever to sign in becomes Admin
-  // automatically; everyone after that needs a department assigned by
-  // an Admin on the "Users & Roles" page before they see any data.
   React.useEffect(() => {
     const unsubscribe = subscribeAuth(async (user) => {
       setAuthUser(user);
@@ -453,7 +446,6 @@ export default function InventoryApp() {
     }
   }
 
-  // Load saved data once signed in. Data is shared across everyone using this app.
   React.useEffect(() => {
     if (!authUser || role === null) return;
     (async () => {
@@ -489,7 +481,6 @@ export default function InventoryApp() {
     })();
   }, [ready, items, suppliers, customers, purchaseOrders, sales, audit, permissions]);
 
-  // Admin always has every module, unconditionally, so it can never be locked out.
   const departments = Object.keys(permissions);
   const allRoles = ["Admin", ...departments];
   const modulesFor = (r) => (r === "Admin" ? ADMIN_MODULES : permissions[r] || []);
@@ -530,7 +521,6 @@ export default function InventoryApp() {
   const supplierName = (id) => suppliers.find((s) => s.id === id)?.name || "—";
   const customerName = (id) => customers.find((c) => c.id === id)?.name || "—";
 
-  /* ---------- Departments & feature permissions (Admin only) ---------- */
   function toggleModule(dept, moduleKey) {
     setPermissions((p) => {
       const current = p[dept] || [];
@@ -554,8 +544,7 @@ export default function InventoryApp() {
     log(`Removed department "${name}".`);
   }
 
-  /* ---------- Item CRUD ---------- */
-  const [itemModal, setItemModal] = useState(null); // null | {} (new) | item (edit)
+  const [itemModal, setItemModal] = useState(null);
   function saveItem(form) {
     if (form.id) {
       setItems((arr) => arr.map((i) => (i.id === form.id ? { ...form } : i)));
@@ -573,7 +562,6 @@ export default function InventoryApp() {
     log(`Deleted item "${it?.name}".`);
   }
 
-  /* ---------- Weekly deals (propose → Admin approves before it's public) ---------- */
   function proposeDeal(itemId, percent, weekLabel) {
     setItems((arr) =>
       arr.map((i) => (i.id === itemId ? { ...i, dealStatus: "pending", dealPercent: Number(percent), dealWeek: weekLabel } : i))
@@ -593,8 +581,6 @@ export default function InventoryApp() {
     log(`Ended the deal on "${items.find((i) => i.id === itemId)?.name}".`);
   }
 
-  // Whenever approved deals change, publish a small public snapshot that
-  // the unauthenticated storefront can read (it can't see full inventory).
   React.useEffect(() => {
     if (!ready) return;
     const approvedDeals = items
@@ -606,7 +592,6 @@ export default function InventoryApp() {
     publicStorage.set("weekly-deals", JSON.stringify({ deals: approvedDeals, updatedAt: Date.now() }));
   }, [ready, items]);
 
-  /* ---------- Stock transfer ---------- */
   const [transferModal, setTransferModal] = useState(false);
   function doTransfer({ itemId, toWarehouseId, qty }) {
     setItems((arr) => {
@@ -625,7 +610,6 @@ export default function InventoryApp() {
     setTransferModal(false);
   }
 
-  /* ---------- Purchase orders (GRN receiving increases stock) ---------- */
   const [poModal, setPoModal] = useState(false);
   function createPO({ supplierId, lines }) {
     const po = { id: uid("PO"), supplierId, date: nowStamp(), lines, status: "Received" };
@@ -640,7 +624,6 @@ export default function InventoryApp() {
     setPoModal(false);
   }
 
-  /* ---------- Sales (POS) — Cashier sales need Admin approval first ---------- */
   const [saleModal, setSaleModal] = useState(false);
   const [receiptSale, setReceiptSale] = useState(null);
   function createSale({ customerId, lines }) {
@@ -679,7 +662,6 @@ export default function InventoryApp() {
     log(`Rejected sale #${saleId}.`);
   }
 
-  /* ---------- Reset ---------- */
   const [confirmReset, setConfirmReset] = useState(false);
   function resetAll() {
     setItems(seedItems);
@@ -727,20 +709,36 @@ export default function InventoryApp() {
         .font-mono { font-family: 'IBM Plex Mono', monospace; }
       `}</style>
 
-      {/* Sidebar */}
-      <aside className="w-64 shrink-0 bg-gradient-to-b from-[#0B1330] to-[#182B57] text-slate-300 flex flex-col">
-        <div className="px-5 py-6 border-b border-white/10">
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 bg-black/40 z-30 md:hidden"
+        />
+      )}
+
+      <aside
+        className={`fixed md:static inset-y-0 left-0 z-40 w-64 shrink-0 bg-gradient-to-b from-[#0B1330] to-[#182B57] text-slate-300 flex flex-col transform transition-transform duration-200 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        } md:translate-x-0`}
+      >
+        <div className="px-5 py-6 border-b border-white/10 flex items-center justify-between">
           <BrandMark size={40} withText />
+          <button onClick={() => setSidebarOpen(false)} className="md:hidden text-slate-400 hover:text-white">
+            <X size={18} />
+          </button>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {visibleNav.map((n) => {
             const Icon = n.icon;
             const active = tab === n.key;
             return (
               <button
                 key={n.key}
-                onClick={() => setTab(n.key)}
+                onClick={() => {
+                  setTab(n.key);
+                  setSidebarOpen(false);
+                }}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   active ? "bg-[#2563EB] text-white" : "hover:bg-white/5 text-slate-300"
                 }`}
@@ -765,30 +763,35 @@ export default function InventoryApp() {
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 min-w-0 flex flex-col">
-        <header className="px-8 py-5 flex items-center justify-between bg-white border-b border-slate-200/80">
-          <div>
-            <h1 className="font-[Manrope] font-extrabold text-lg text-slate-800">
-              {NAV.find((n) => n.key === tab)?.label}
-            </h1>
-            <p className="text-xs text-slate-400">{new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
+      <main className="flex-1 min-w-0 flex flex-col w-full">
+        <header className="px-4 sm:px-8 py-4 sm:py-5 flex items-center justify-between gap-3 bg-white border-b border-slate-200/80">
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={() => setSidebarOpen(true)} className="md:hidden text-slate-500 hover:text-slate-800 shrink-0">
+              <Menu size={22} />
+            </button>
+            <div className="min-w-0">
+              <h1 className="font-[Manrope] font-extrabold text-base sm:text-lg text-slate-800 truncate">
+                {NAV.find((n) => n.key === tab)?.label}
+              </h1>
+              <p className="text-xs text-slate-400 hidden sm:block">{new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             {saveError && (
-              <span className="text-xs text-red-500 font-medium">Couldn't save last change — check connection</span>
+              <span className="text-xs text-red-500 font-medium hidden sm:inline">Couldn't save last change — check connection</span>
             )}
             {lowStockItems.length > 0 && (
-              <div className="flex items-center gap-2 bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-lg text-xs font-semibold">
+              <div className="flex items-center gap-1.5 sm:gap-2 bg-amber-50 text-amber-700 border border-amber-200 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap">
                 <AlertTriangle size={14} />
-                {lowStockItems.length} item{lowStockItems.length > 1 ? "s" : ""} need reordering
+                <span className="hidden sm:inline">{lowStockItems.length} item{lowStockItems.length > 1 ? "s" : ""} need reordering</span>
+                <span className="sm:hidden">{lowStockItems.length}</span>
               </div>
             )}
           </div>
         </header>
         <div className="h-[3px] w-full" style={{ background: "linear-gradient(90deg, #2563EB, #4F46E5, #F97316)" }} />
 
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8">
           {tab === "dashboard" && (
             <Dashboard
               items={items}
@@ -917,10 +920,6 @@ export default function InventoryApp() {
   );
 }
 
-/* ---------------------------------------------------------------------- */
-/* Dashboard                                                                */
-/* ---------------------------------------------------------------------- */
-
 function Dashboard({ items, lowStockItems, totalStockValue, todaySalesTotal, sales, purchaseOrders, warehouses, audit, role }) {
   return (
     <div className="space-y-6">
@@ -938,15 +937,15 @@ function Dashboard({ items, lowStockItems, totalStockValue, todaySalesTotal, sal
         <Zap size={120} className="absolute -right-4 -bottom-6 opacity-10 text-white rotate-12" fill="white" />
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <StatCard icon={Package} label="Items tracked" value={items.length} sub={`Across ${warehouses.length} warehouses`} accent="#2563EB" />
         <StatCard icon={AlertTriangle} label="Low stock" value={lowStockItems.length} sub="At or below reorder level" accent="#D97706" />
         <StatCard icon={Boxes} label="Stock value" value={money(totalStockValue)} sub="At current cost price" accent="#0369A1" />
         <StatCard icon={ShoppingCart} label="Sales recorded" value={money(todaySalesTotal)} sub={`${sales.length} transaction${sales.length !== 1 ? "s" : ""} this session`} accent="#7C3AED" />
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <Card className="col-span-2 p-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2 p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-[Manrope] font-bold text-sm text-slate-700">Reorder alerts</h3>
             <span className="text-xs text-slate-400">Sorted by urgency</span>
@@ -992,10 +991,6 @@ function Dashboard({ items, lowStockItems, totalStockValue, todaySalesTotal, sal
     </div>
   );
 }
-
-/* ---------------------------------------------------------------------- */
-/* Items                                                                    */
-/* ---------------------------------------------------------------------- */
 
 function ItemsView({ items, warehouses, onAdd, onEdit, onDelete, warehouseName, role, onProposeDeal, onApproveDeal, onRejectDeal, onEndDeal }) {
   const [q, setQ] = useState("");
@@ -1059,6 +1054,7 @@ function ItemsView({ items, warehouses, onAdd, onEdit, onDelete, warehouseName, 
           </Btn>
         </div>
 
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-100">
@@ -1121,6 +1117,7 @@ function ItemsView({ items, warehouses, onAdd, onEdit, onDelete, warehouseName, 
             )}
           </tbody>
         </table>
+        </div>
       </Card>
 
       {dealModalItem && (
@@ -1182,7 +1179,7 @@ function ItemFormModal({ item, warehouses, onClose, onSave }) {
           e.preventDefault();
           onSave({ ...form, cost: Number(form.cost), price: Number(form.price), qty: Number(form.qty), reorder: Number(form.reorder) });
         }}
-        className="grid grid-cols-2 gap-4"
+        className="grid grid-cols-1 sm:grid-cols-2 gap-4"
       >
         <Field label="Item name"><input required className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
         <Field label="Category"><input required className={inputCls} value={form.category} onChange={(e) => set("category", e.target.value)} /></Field>
@@ -1202,7 +1199,7 @@ function ItemFormModal({ item, warehouses, onClose, onSave }) {
           </select>
         </Field>
         <Field label="Expiry date (optional)"><input type="date" className={inputCls} value={form.expiry || ""} onChange={(e) => set("expiry", e.target.value)} /></Field>
-        <div className="col-span-2 flex justify-end gap-2 pt-2">
+        <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
           <Btn type="submit">{item.id ? "Save changes" : "Add item"}</Btn>
         </div>
@@ -1211,17 +1208,13 @@ function ItemFormModal({ item, warehouses, onClose, onSave }) {
   );
 }
 
-/* ---------------------------------------------------------------------- */
-/* Stock & Warehouses                                                       */
-/* ---------------------------------------------------------------------- */
-
 function StockView({ items, warehouses, onTransfer, warehouseName }) {
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
         <Btn onClick={onTransfer}><ArrowRightLeft size={15} /> Transfer stock</Btn>
       </div>
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {warehouses.map((w) => {
           const wItems = items.filter((i) => i.warehouseId === w.id);
           const value = wItems.reduce((s, i) => s + i.qty * i.cost, 0);
@@ -1295,16 +1288,12 @@ function TransferModal({ items, warehouses, onClose, onSubmit }) {
   );
 }
 
-/* ---------------------------------------------------------------------- */
-/* Purchases & Suppliers                                                    */
-/* ---------------------------------------------------------------------- */
-
 function PurchasesView({ suppliers, purchaseOrders, onNewPO, supplierName, onAddSupplier }) {
   const [supplierModal, setSupplierModal] = useState(false);
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-6">
-        <Card className="col-span-2 p-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2 p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-[Manrope] font-bold text-sm text-slate-700">Purchase orders (Goods Received)</h3>
             <Btn onClick={onNewPO}><Plus size={15} /> New purchase order</Btn>
@@ -1378,8 +1367,8 @@ function POModal({ items, suppliers, onClose, onSubmit }) {
         <div className="space-y-2">
           <span className="text-xs font-medium text-slate-500">Items received</span>
           {lines.map((l, idx) => (
-            <div key={idx} className="flex items-center gap-2">
-              <select className={`${inputCls} flex-1`} value={l.itemId} onChange={(e) => updateLine(idx, { itemId: e.target.value })}>
+            <div key={idx} className="flex flex-wrap items-center gap-2">
+              <select className={`${inputCls} flex-1 min-w-[140px]`} value={l.itemId} onChange={(e) => updateLine(idx, { itemId: e.target.value })}>
                 {items.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
               </select>
               <input type="number" min={1} className={`${inputCls} w-24 font-mono`} value={l.qty} onChange={(e) => updateLine(idx, { qty: e.target.value })} placeholder="Qty" />
@@ -1398,10 +1387,6 @@ function POModal({ items, suppliers, onClose, onSubmit }) {
     </Modal>
   );
 }
-
-/* ---------------------------------------------------------------------- */
-/* Sales & Customers                                                        */
-/* ---------------------------------------------------------------------- */
 
 function SalesView({ sales, customers, onNewSale, customerName, onAddCustomer, role, onApproveSale, onRejectSale }) {
   const [customerModal, setCustomerModal] = useState(false);
@@ -1432,8 +1417,8 @@ function SalesView({ sales, customers, onNewSale, customerName, onAddCustomer, r
         </Card>
       )}
 
-      <div className="grid grid-cols-3 gap-6">
-        <Card className="col-span-2 p-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2 p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-[Manrope] font-bold text-sm text-slate-700">Sales history</h3>
             <Btn onClick={onNewSale}><Plus size={15} /> New sale</Btn>
@@ -1514,8 +1499,8 @@ function SaleModal({ items, customers, onClose, onSubmit }) {
           {lines.map((l, idx) => {
             const maxQty = items.find((i) => i.id === l.itemId)?.qty ?? 0;
             return (
-              <div key={idx} className="flex items-center gap-2">
-                <select className={`${inputCls} flex-1`} value={l.itemId} onChange={(e) => updateLine(idx, { itemId: e.target.value, price: items.find(i=>i.id===e.target.value)?.price })}>
+              <div key={idx} className="flex flex-wrap items-center gap-2">
+                <select className={`${inputCls} flex-1 min-w-[140px]`} value={l.itemId} onChange={(e) => updateLine(idx, { itemId: e.target.value, price: items.find(i=>i.id===e.target.value)?.price })}>
                   {inStock.map((i) => <option key={i.id} value={i.id}>{i.name} ({i.qty} available)</option>)}
                 </select>
                 <input type="number" min={1} max={maxQty} className={`${inputCls} w-20 font-mono`} value={l.qty} onChange={(e) => updateLine(idx, { qty: e.target.value })} />
@@ -1599,10 +1584,6 @@ function SimpleFormModal({ title, fields, onClose, onSubmit }) {
   );
 }
 
-/* ---------------------------------------------------------------------- */
-/* Reports                                                                   */
-/* ---------------------------------------------------------------------- */
-
 function ReportsView({ items, sales }) {
   const confirmedSales = sales.filter((s) => s.status !== "rejected" && s.status !== "pending");
   const stockData = items.map((i) => ({ name: i.name, value: i.qty * i.cost }));
@@ -1627,7 +1608,7 @@ function ReportsView({ items, sales }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard icon={Boxes} label="Stock at cost" value={money(totalCost)} accent="#0369A1" />
         <StatCard icon={TrendingUp} label="Revenue (session)" value={money(totalRevenue)} accent="#2563EB" />
         <StatCard icon={profit >= 0 ? TrendingUp : TrendingDown} label="Gross profit" value={money(profit)} accent={profit >= 0 ? "#2563EB" : "#DC2626"} />
@@ -1650,6 +1631,7 @@ function ReportsView({ items, sales }) {
 
       <Card className="p-5">
         <h3 className="font-[Manrope] font-bold text-sm text-slate-700 mb-4">Stock movement — fast vs. slow moving</h3>
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-100">
@@ -1678,14 +1660,11 @@ function ReportsView({ items, sales }) {
             ))}
           </tbody>
         </table>
+        </div>
       </Card>
     </div>
   );
 }
-
-/* ---------------------------------------------------------------------- */
-/* Users & Roles / Audit trail                                              */
-/* ---------------------------------------------------------------------- */
 
 function UsersView({ audit, onReset, permissions, onToggleModule, onAddDepartment, onRemoveDepartment, allRoles, userRoles, onAssignRole, onRemoveUserRole }) {
   const [newDept, setNewDept] = useState("");
@@ -1717,7 +1696,6 @@ function UsersView({ audit, onReset, permissions, onToggleModule, onAddDepartmen
               </tr>
             </thead>
             <tbody>
-              {/* Admin row — fixed, not editable */}
               <tr className="bg-blue-50/50">
                 <td className="py-2.5 pr-4 rounded-l-lg">
                   <div className="flex items-center gap-2">
