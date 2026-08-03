@@ -1,5 +1,8 @@
 import React, { useState, useMemo } from "react";
-import { storage } from "./storage.js";
+import {
+  storage, publicStorage, loginUser, logoutUser, subscribeAuth,
+  getUserRole, setUserRole, deleteUserRole, listUserRoles, isFirstUser,
+} from "./storage.js";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
@@ -67,18 +70,34 @@ const NAV = [
 ];
 
 function BrandMark({ size = 36, withText = false, textClass = "" }) {
+  const [logoSrc, setLogoSrc] = useState("/logo.png");
+  const [logoFailed, setLogoFailed] = useState(false);
+
   return (
     <div className="flex items-center gap-2.5">
-      <div
-        className="shrink-0 rounded-xl flex items-center justify-center shadow-sm"
-        style={{
-          width: size,
-          height: size,
-          background: "linear-gradient(135deg, #2563EB 0%, #4F46E5 55%, #F97316 130%)",
-        }}
-      >
-        <Zap size={size * 0.55} className="text-white" fill="white" strokeWidth={1.5} />
-      </div>
+      {!logoFailed ? (
+        <img
+          src={logoSrc}
+          alt="Logo"
+          onError={() => {
+            if (logoSrc === "/logo.png") setLogoSrc("/logo.jpg");
+            else setLogoFailed(true);
+          }}
+          className="shrink-0 rounded-xl object-cover shadow-sm bg-white"
+          style={{ width: size, height: size }}
+        />
+      ) : (
+        <div
+          className="shrink-0 rounded-xl flex items-center justify-center shadow-sm"
+          style={{
+            width: size,
+            height: size,
+            background: "linear-gradient(135deg, #2563EB 0%, #4F46E5 55%, #F97316 130%)",
+          }}
+        >
+          <Zap size={size * 0.55} className="text-white" fill="white" strokeWidth={1.5} />
+        </div>
+      )}
       {withText && (
         <div className={textClass}>
           <div className="font-[Manrope] font-extrabold text-white leading-none" style={{ fontSize: size * 0.42 }}>
@@ -87,37 +106,6 @@ function BrandMark({ size = 36, withText = false, textClass = "" }) {
           <div className="text-[10px] text-slate-400 tracking-[0.15em] font-semibold mt-1">ELECTRONICS &amp; APPLIANCES</div>
         </div>
       )}
-    </div>
-  );
-}
-
-function Card({ children, className = "" }) {
-  return (
-    <div className={`bg-white rounded-xl border border-slate-200/80 shadow-sm transition-shadow duration-200 hover:shadow-md ${className}`}>
-      {children}
-    </div>
-  );
-}
-
-function Toast({ toast, onDone }) {
-  React.useEffect(() => {
-    const t = setTimeout(onDone, 3200);
-    return () => clearTimeout(t);
-  }, []); // eslint-disable-line
-  return (
-    <div className="flex items-start gap-2.5 bg-[#16202A] text-white text-sm rounded-xl shadow-lg px-4 py-3 min-w-[260px] max-w-sm animate-[toastIn_0.25s_ease-out]">
-      <span className="h-2 w-2 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: "#22C55E" }} />
-      <span className="leading-snug">{toast.message}</span>
-    </div>
-  );
-}
-function ToastStack({ toasts, dismiss }) {
-  return (
-    <div className="fixed top-5 right-5 z-[100] flex flex-col gap-2">
-      <style>{`@keyframes toastIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
-      {toasts.map((t) => (
-        <Toast key={t.id} toast={t} onDone={() => dismiss(t.id)} />
-      ))}
     </div>
   );
 }
@@ -145,6 +133,38 @@ function StockPulse({ qty, reorder }) {
         {level === "ok" ? "OK" : level === "watch" ? "WATCH" : level === "low" ? "LOW" : "OUT"}
       </span>
     </span>
+  );
+}
+
+function Card({ children, className = "" }) {
+  return (
+    <div className={`bg-white rounded-xl border border-slate-200/80 shadow-sm transition-shadow duration-200 hover:shadow-md ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+/* Toast notifications */
+function Toast({ toast, onDone }) {
+  React.useEffect(() => {
+    const t = setTimeout(onDone, 3200);
+    return () => clearTimeout(t);
+  }, []); // eslint-disable-line
+  return (
+    <div className="flex items-start gap-2.5 bg-[#16202A] text-white text-sm rounded-xl shadow-lg px-4 py-3 min-w-[260px] max-w-sm animate-[toastIn_0.25s_ease-out]">
+      <span className="h-2 w-2 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: "#22C55E" }} />
+      <span className="leading-snug">{toast.message}</span>
+    </div>
+  );
+}
+function ToastStack({ toasts, dismiss }) {
+  return (
+    <div className="fixed top-5 right-5 z-[100] flex flex-col gap-2">
+      <style>{`@keyframes toastIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+      {toasts.map((t) => (
+        <Toast key={t.id} toast={t} onDone={() => dismiss(t.id)} />
+      ))}
+    </div>
   );
 }
 
@@ -204,8 +224,174 @@ function Btn({ children, onClick, variant = "primary", type = "button", classNam
   );
 }
 
+function LoginScreen({ onLogin, error, loading, onBack }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#F5F6F8] font-[Inter] p-4">
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&family=Inter:wght@400;500;600&display=swap');`}</style>
+      <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
+        {onBack && (
+          <button onClick={onBack} className="text-xs text-slate-400 hover:text-slate-600 mb-4">← Back to store</button>
+        )}
+        <div className="flex flex-col items-center gap-2 mb-6">
+          <BrandMark size={44} />
+          <div className="text-center mt-1">
+            <div className="font-[Manrope] font-extrabold text-slate-800 text-lg leading-none">
+              Stockline<span style={{ color: "#F97316" }}>.</span>
+            </div>
+            <div className="text-[10px] text-slate-400 tracking-[0.15em] font-semibold mt-1">ELECTRONICS &amp; APPLIANCES</div>
+          </div>
+        </div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onLogin(email, password);
+          }}
+          className="flex flex-col gap-4"
+        >
+          <Field label="Email">
+            <input required type="email" autoComplete="username" className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </Field>
+          <Field label="Password">
+            <input required type="password" autoComplete="current-password" className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </Field>
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <Btn type="submit" className="justify-center mt-2">{loading ? "Signing in…" : "Sign in"}</Btn>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function PendingAccessScreen({ email, onLogout }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#F5F6F8] font-[Inter] p-4">
+      <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm text-center">
+        <div className="flex justify-center mb-4">
+          <BrandMark size={40} />
+        </div>
+        <h2 className="font-[Manrope] font-bold text-slate-800">Waiting for access</h2>
+        <p className="text-sm text-slate-500 mt-2">
+          <span className="font-medium">{email}</span> is signed in but doesn't have a department assigned yet. Ask your Admin to assign one on the "Users & Roles" page.
+        </p>
+        <Btn variant="ghost" onClick={onLogout} className="mt-5 justify-center w-full">Sign out</Btn>
+      </div>
+    </div>
+  );
+}
+
+function Storefront({ onStaffLogin }) {
+  const [deals, setDeals] = useState(null); // null = loading
+  const [error, setError] = useState(false);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const result = await publicStorage.get("weekly-deals");
+        const parsed = result?.value ? JSON.parse(result.value) : { deals: [] };
+        setDeals(parsed.deals || []);
+      } catch (err) {
+        setError(true);
+        setDeals([]);
+      }
+    })();
+  }, []);
+
+  const grouped = useMemo(() => {
+    const byCat = {};
+    (deals || []).forEach((d) => {
+      byCat[d.category] = byCat[d.category] || [];
+      byCat[d.category].push(d);
+    });
+    return byCat;
+  }, [deals]);
+
+  return (
+    <div className="min-h-screen bg-[#F5F6F8] font-[Inter] text-slate-800">
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap');`}</style>
+
+      <header
+        className="px-6 py-10 md:py-16 relative overflow-hidden"
+        style={{ background: "linear-gradient(120deg, #0B1330 0%, #1D2E6B 55%, #2563EB 100%)" }}
+      >
+        <div className="max-w-5xl mx-auto flex items-center justify-between relative z-10">
+          <BrandMark size={40} withText />
+          <button
+            onClick={onStaffLogin}
+            className="text-xs text-slate-300 hover:text-white border border-white/20 rounded-lg px-3 py-1.5 transition-colors"
+          >
+            Staff sign in
+          </button>
+        </div>
+        <div className="max-w-5xl mx-auto relative z-10 mt-10">
+          <h1 className="font-[Manrope] font-extrabold text-white text-2xl md:text-4xl leading-tight">This Week's Deals</h1>
+          <p className="text-slate-300 mt-2 max-w-lg">Real markdowns on TVs, fridges, and appliances — refreshed every week.</p>
+        </div>
+        <Zap size={220} className="absolute -right-10 -bottom-16 opacity-10 text-white rotate-12" fill="white" />
+      </header>
+
+      <main className="max-w-5xl mx-auto px-6 py-10">
+        {deals === null ? (
+          <div className="flex flex-col items-center gap-3 py-20 text-slate-400">
+            <div className="animate-pulse"><BrandMark size={36} /></div>
+            <p className="text-sm">Loading this week's deals…</p>
+          </div>
+        ) : deals.length === 0 ? (
+          <div className="text-center py-20">
+            <ShoppingCart size={32} className="mx-auto mb-3 text-slate-300" />
+            <p className="text-slate-500 font-medium">No deals are live right now — check back soon.</p>
+          </div>
+        ) : (
+          Object.entries(grouped).map(([category, catDeals]) => (
+            <div key={category} className="mb-10">
+              <h2 className="font-[Manrope] font-bold text-slate-700 mb-4 flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: catColor(category) }} />
+                {category}
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {catDeals.map((d) => {
+                  const discounted = d.price * (1 - d.dealPercent / 100);
+                  return (
+                    <Card key={d.id} className="p-4 relative overflow-hidden">
+                      <span className="absolute top-3 right-3 text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-500 text-white">
+                        -{d.dealPercent}%
+                      </span>
+                      <div className="text-sm font-semibold text-slate-700 pr-12">{d.name}</div>
+                      {d.dealWeek && <div className="text-[11px] text-slate-400 mt-0.5">{d.dealWeek}</div>}
+                      <div className="mt-3 flex items-baseline gap-2">
+                        <span className="font-[Manrope] font-extrabold text-lg" style={{ color: "#2563EB" }}>{money(discounted)}</span>
+                        <span className="text-xs text-slate-400 line-through">{money(d.price)}</span>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          ))
+        )}
+      </main>
+
+      {error && (
+        <p className="text-center text-xs text-slate-400 pb-6">Couldn't load the latest deals — showing what's cached.</p>
+      )}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------- */
+/* Main App                                                                */
+/* ---------------------------------------------------------------------- */
+
 export default function InventoryApp() {
-  const [role, setRole] = useState("Admin");
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authUser, setAuthUser] = useState(null);
+  const [role, setRole] = useState(null);
+  const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [userRoles, setUserRoles] = useState([]);
+
   const [tab, setTab] = useState("dashboard");
   const [items, setItems] = useState(seedItems);
   const [warehouses] = useState(seedWarehouses);
@@ -213,7 +399,7 @@ export default function InventoryApp() {
   const [customers, setCustomers] = useState(seedCustomers);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [sales, setSales] = useState([]);
-  const [permissions, setPermissions] = useState(seedPermissions);
+  const [permissions, setPermissions] = useState(seedPermissions); // { [department]: [moduleKey, ...] } — Admin excluded, always full access
   const [audit, setAudit] = useState([
     { id: uid("a"), time: nowStamp(), user: "Admin", action: "System initialized with starting inventory." },
   ]);
@@ -221,7 +407,55 @@ export default function InventoryApp() {
   const [ready, setReady] = useState(false);
   const [saveError, setSaveError] = useState(false);
 
+  // Watch sign-in state. The first person ever to sign in becomes Admin
+  // automatically; everyone after that needs a department assigned by
+  // an Admin on the "Users & Roles" page before they see any data.
   React.useEffect(() => {
+    const unsubscribe = subscribeAuth(async (user) => {
+      setAuthUser(user);
+      setRole(null);
+      if (user) {
+        let r = await getUserRole(user.email);
+        if (!r) {
+          const first = await isFirstUser();
+          if (first) {
+            await setUserRole(user.email, "Admin");
+            r = "Admin";
+          }
+        }
+        setRole(r);
+      }
+      setAuthChecked(true);
+    });
+    return unsubscribe;
+  }, []);
+
+  async function refreshUserRoles() {
+    setUserRoles(await listUserRoles());
+  }
+
+  async function handleLogin(email, password) {
+    setLoginError("");
+    setLoginLoading(true);
+    try {
+      await loginUser(email, password);
+    } catch (err) {
+      const messages = {
+        "auth/invalid-email": "That email address doesn't look right.",
+        "auth/user-not-found": "No account with that email. Ask your Admin to create one.",
+        "auth/wrong-password": "Incorrect password.",
+        "auth/invalid-credential": "Incorrect email or password.",
+        "auth/too-many-requests": "Too many attempts — please wait a moment and try again.",
+      };
+      setLoginError(messages[err.code] || "Couldn't sign in. Please try again.");
+    } finally {
+      setLoginLoading(false);
+    }
+  }
+
+  // Load saved data once signed in. Data is shared across everyone using this app.
+  React.useEffect(() => {
+    if (!authUser || role === null) return;
     (async () => {
       try {
         const result = await storage.get("inventory-store");
@@ -241,8 +475,7 @@ export default function InventoryApp() {
         setReady(true);
       }
     })();
-  }, []);
-
+  }, [authUser, role]);
   React.useEffect(() => {
     if (!ready) return;
     (async () => {
@@ -256,6 +489,7 @@ export default function InventoryApp() {
     })();
   }, [ready, items, suppliers, customers, purchaseOrders, sales, audit, permissions]);
 
+  // Admin always has every module, unconditionally, so it can never be locked out.
   const departments = Object.keys(permissions);
   const allRoles = ["Admin", ...departments];
   const modulesFor = (r) => (r === "Admin" ? ADMIN_MODULES : permissions[r] || []);
@@ -268,18 +502,35 @@ export default function InventoryApp() {
   const [toasts, setToasts] = useState([]);
   const dismissToast = (id) => setToasts((t) => t.filter((x) => x.id !== id));
   const log = (action) => {
-    setAudit((a) => [{ id: uid("a"), time: nowStamp(), user: role, action }, ...a].slice(0, 50));
+    const who = authUser?.email ? `${role} · ${authUser.email}` : role;
+    setAudit((a) => [{ id: uid("a"), time: nowStamp(), user: who, action }, ...a].slice(0, 50));
     setToasts((t) => [...t, { id: uid("t"), message: action }].slice(-3));
   };
 
+  React.useEffect(() => {
+    if (ready) refreshUserRoles();
+  }, [ready]);
+
+  async function assignUserRole(email, roleName) {
+    await setUserRole(email, roleName);
+    log(`Assigned ${email} to ${roleName}.`);
+    refreshUserRoles();
+  }
+  async function unassignUserRole(email) {
+    await deleteUserRole(email);
+    log(`Removed access for ${email}.`);
+    refreshUserRoles();
+  }
+
   const lowStockItems = items.filter((i) => i.qty <= i.reorder);
   const totalStockValue = items.reduce((s, i) => s + i.qty * i.cost, 0);
-  const todaySalesTotal = sales.reduce((s, sale) => s + sale.total, 0);
+  const todaySalesTotal = sales.filter((s) => s.status !== "rejected" && s.status !== "pending").reduce((s, sale) => s + sale.total, 0);
 
   const warehouseName = (id) => warehouses.find((w) => w.id === id)?.name || "—";
   const supplierName = (id) => suppliers.find((s) => s.id === id)?.name || "—";
   const customerName = (id) => customers.find((c) => c.id === id)?.name || "—";
 
+  /* ---------- Departments & feature permissions (Admin only) ---------- */
   function toggleModule(dept, moduleKey) {
     setPermissions((p) => {
       const current = p[dept] || [];
@@ -300,11 +551,11 @@ export default function InventoryApp() {
       delete next[name];
       return next;
     });
-    if (role === name) setRole("Admin");
     log(`Removed department "${name}".`);
   }
 
-  const [itemModal, setItemModal] = useState(null);
+  /* ---------- Item CRUD ---------- */
+  const [itemModal, setItemModal] = useState(null); // null | {} (new) | item (edit)
   function saveItem(form) {
     if (form.id) {
       setItems((arr) => arr.map((i) => (i.id === form.id ? { ...form } : i)));
@@ -322,6 +573,40 @@ export default function InventoryApp() {
     log(`Deleted item "${it?.name}".`);
   }
 
+  /* ---------- Weekly deals (propose → Admin approves before it's public) ---------- */
+  function proposeDeal(itemId, percent, weekLabel) {
+    setItems((arr) =>
+      arr.map((i) => (i.id === itemId ? { ...i, dealStatus: "pending", dealPercent: Number(percent), dealWeek: weekLabel } : i))
+    );
+    log(`Proposed a ${percent}% deal on "${items.find((i) => i.id === itemId)?.name}" — awaiting Admin approval.`);
+  }
+  function approveDeal(itemId) {
+    setItems((arr) => arr.map((i) => (i.id === itemId ? { ...i, dealStatus: "approved" } : i)));
+    log(`Approved the deal on "${items.find((i) => i.id === itemId)?.name}" — now live on the storefront.`);
+  }
+  function rejectDeal(itemId) {
+    setItems((arr) => arr.map((i) => (i.id === itemId ? { ...i, dealStatus: "none", dealPercent: 0, dealWeek: "" } : i)));
+    log(`Rejected the proposed deal on "${items.find((i) => i.id === itemId)?.name}".`);
+  }
+  function endDeal(itemId) {
+    setItems((arr) => arr.map((i) => (i.id === itemId ? { ...i, dealStatus: "none", dealPercent: 0, dealWeek: "" } : i)));
+    log(`Ended the deal on "${items.find((i) => i.id === itemId)?.name}".`);
+  }
+
+  // Whenever approved deals change, publish a small public snapshot that
+  // the unauthenticated storefront can read (it can't see full inventory).
+  React.useEffect(() => {
+    if (!ready) return;
+    const approvedDeals = items
+      .filter((i) => i.dealStatus === "approved")
+      .map((i) => ({
+        id: i.id, name: i.name, category: i.category, price: i.price,
+        dealPercent: i.dealPercent, dealWeek: i.dealWeek, unit: i.unit,
+      }));
+    publicStorage.set("weekly-deals", JSON.stringify({ deals: approvedDeals, updatedAt: Date.now() }));
+  }, [ready, items]);
+
+  /* ---------- Stock transfer ---------- */
   const [transferModal, setTransferModal] = useState(false);
   function doTransfer({ itemId, toWarehouseId, qty }) {
     setItems((arr) => {
@@ -340,6 +625,7 @@ export default function InventoryApp() {
     setTransferModal(false);
   }
 
+  /* ---------- Purchase orders (GRN receiving increases stock) ---------- */
   const [poModal, setPoModal] = useState(false);
   function createPO({ supplierId, lines }) {
     const po = { id: uid("PO"), supplierId, date: nowStamp(), lines, status: "Received" };
@@ -354,23 +640,46 @@ export default function InventoryApp() {
     setPoModal(false);
   }
 
+  /* ---------- Sales (POS) — Cashier sales need Admin approval first ---------- */
   const [saleModal, setSaleModal] = useState(false);
   const [receiptSale, setReceiptSale] = useState(null);
   function createSale({ customerId, lines }) {
     const total = lines.reduce((s, l) => s + l.qty * l.price, 0);
-    const sale = { id: uid("SL"), customerId, date: nowStamp(), lines, total };
+    const needsApproval = role === "Cashier";
+    const sale = { id: uid("SL"), customerId, date: nowStamp(), lines, total, status: needsApproval ? "pending" : "approved" };
     setSales((arr) => [sale, ...arr]);
-    setItems((arr) =>
-      arr.map((i) => {
-        const line = lines.find((l) => l.itemId === i.id);
-        return line ? { ...i, qty: Math.max(0, i.qty - Number(line.qty)) } : i;
-      })
-    );
-    log(`Sale #${sale.id} recorded for ${customerName(customerId)} — ${money(total)}.`);
+    if (!needsApproval) {
+      setItems((arr) =>
+        arr.map((i) => {
+          const line = lines.find((l) => l.itemId === i.id);
+          return line ? { ...i, qty: Math.max(0, i.qty - Number(line.qty)) } : i;
+        })
+      );
+      log(`Sale #${sale.id} recorded for ${customerName(customerId)} — ${money(total)}.`);
+    } else {
+      log(`Sale #${sale.id} submitted by Cashier for ${customerName(customerId)} — awaiting Admin approval.`);
+    }
     setSaleModal(false);
     setReceiptSale(sale);
   }
+  function approveSale(saleId) {
+    const sale = sales.find((s) => s.id === saleId);
+    if (!sale) return;
+    setSales((arr) => arr.map((s) => (s.id === saleId ? { ...s, status: "approved" } : s)));
+    setItems((arr) =>
+      arr.map((i) => {
+        const line = sale.lines.find((l) => l.itemId === i.id);
+        return line ? { ...i, qty: Math.max(0, i.qty - Number(line.qty)) } : i;
+      })
+    );
+    log(`Approved sale #${saleId} — stock updated.`);
+  }
+  function rejectSale(saleId) {
+    setSales((arr) => arr.map((s) => (s.id === saleId ? { ...s, status: "rejected" } : s)));
+    log(`Rejected sale #${saleId}.`);
+  }
 
+  /* ---------- Reset ---------- */
   const [confirmReset, setConfirmReset] = useState(false);
   function resetAll() {
     setItems(seedItems);
@@ -379,12 +688,11 @@ export default function InventoryApp() {
     setPurchaseOrders([]);
     setSales([]);
     setPermissions(seedPermissions);
-    setRole("Admin");
     setAudit([{ id: uid("a"), time: nowStamp(), user: role, action: "Data reset to starting sample inventory." }]);
     setConfirmReset(false);
   }
 
-  if (!ready) {
+  if (!authChecked || (authUser && role !== null && !ready)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F5F6F8] font-[Inter]">
         <style>{`@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&family=Inter:wght@500&display=swap');`}</style>
@@ -398,6 +706,18 @@ export default function InventoryApp() {
     );
   }
 
+  if (!authUser) {
+    return showLogin ? (
+      <LoginScreen onLogin={handleLogin} error={loginError} loading={loginLoading} onBack={() => setShowLogin(false)} />
+    ) : (
+      <Storefront onStaffLogin={() => setShowLogin(true)} />
+    );
+  }
+
+  if (role === null) {
+    return <PendingAccessScreen email={authUser.email} onLogout={logoutUser} />;
+  }
+
   return (
     <div className="min-h-screen flex bg-[#F5F6F8] font-[Inter] text-slate-800">
       <style>{`
@@ -407,6 +727,7 @@ export default function InventoryApp() {
         .font-mono { font-family: 'IBM Plex Mono', monospace; }
       `}</style>
 
+      {/* Sidebar */}
       <aside className="w-64 shrink-0 bg-gradient-to-b from-[#0B1330] to-[#182B57] text-slate-300 flex flex-col">
         <div className="px-5 py-6 border-b border-white/10">
           <BrandMark size={40} withText />
@@ -433,20 +754,18 @@ export default function InventoryApp() {
 
         <div className="px-4 py-4 border-t border-white/10">
           <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1.5 font-semibold">Signed in as</div>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 text-slate-100 text-sm rounded-lg px-2.5 py-2 focus:outline-none"
+          <div className="text-sm text-slate-100 truncate" title={authUser.email}>{authUser.email}</div>
+          <div className="text-xs mt-0.5" style={{ color: "#93C5FD" }}>{role}</div>
+          <button
+            onClick={logoutUser}
+            className="mt-3 w-full text-left text-xs text-slate-400 hover:text-white transition-colors"
           >
-            {allRoles.map((r) => (
-              <option key={r} value={r} className="text-slate-800">
-                {r}
-              </option>
-            ))}
-          </select>
+            Sign out
+          </button>
         </div>
       </aside>
 
+      {/* Main content */}
       <main className="flex-1 min-w-0 flex flex-col">
         <header className="px-8 py-5 flex items-center justify-between bg-white border-b border-slate-200/80">
           <div>
@@ -492,6 +811,11 @@ export default function InventoryApp() {
               onEdit={(it) => setItemModal(it)}
               onDelete={deleteItem}
               warehouseName={warehouseName}
+              role={role}
+              onProposeDeal={proposeDeal}
+              onApproveDeal={approveDeal}
+              onRejectDeal={rejectDeal}
+              onEndDeal={endDeal}
             />
           )}
 
@@ -523,6 +847,9 @@ export default function InventoryApp() {
               customers={customers}
               onNewSale={() => setSaleModal(true)}
               customerName={customerName}
+              role={role}
+              onApproveSale={approveSale}
+              onRejectSale={rejectSale}
               onAddCustomer={(c) => {
                 setCustomers((arr) => [...arr, { ...c, id: uid("C") }]);
                 log(`Added new customer "${c.name}".`);
@@ -540,6 +867,10 @@ export default function InventoryApp() {
               onToggleModule={toggleModule}
               onAddDepartment={addDepartment}
               onRemoveDepartment={removeDepartment}
+              allRoles={allRoles}
+              userRoles={userRoles}
+              onAssignRole={assignUserRole}
+              onRemoveUserRole={unassignUserRole}
             />
           )}
         </div>
@@ -585,6 +916,10 @@ export default function InventoryApp() {
     </div>
   );
 }
+
+/* ---------------------------------------------------------------------- */
+/* Dashboard                                                                */
+/* ---------------------------------------------------------------------- */
 
 function Dashboard({ items, lowStockItems, totalStockValue, todaySalesTotal, sales, purchaseOrders, warehouses, audit, role }) {
   return (
@@ -658,9 +993,14 @@ function Dashboard({ items, lowStockItems, totalStockValue, todaySalesTotal, sal
   );
 }
 
-function ItemsView({ items, warehouses, onAdd, onEdit, onDelete, warehouseName }) {
+/* ---------------------------------------------------------------------- */
+/* Items                                                                    */
+/* ---------------------------------------------------------------------- */
+
+function ItemsView({ items, warehouses, onAdd, onEdit, onDelete, warehouseName, role, onProposeDeal, onApproveDeal, onRejectDeal, onEndDeal }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("All");
+  const [dealModalItem, setDealModalItem] = useState(null);
   const categories = ["All", ...new Set(items.map((i) => i.category))];
 
   const filtered = items.filter(
@@ -669,78 +1009,162 @@ function ItemsView({ items, warehouses, onAdd, onEdit, onDelete, warehouseName }
       (i.name.toLowerCase().includes(q.toLowerCase()) || i.sku.toLowerCase().includes(q.toLowerCase()))
   );
 
-  return (
-    <Card className="p-5">
-      <div className="flex items-center justify-between mb-4 gap-3">
-        <div className="flex items-center gap-2 flex-1">
-          <div className="relative flex-1 max-w-xs">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search by name or SKU"
-              className={`${inputCls} pl-8 w-full`}
-            />
-          </div>
-          <select value={cat} onChange={(e) => setCat(e.target.value)} className={inputCls}>
-            {categories.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-        </div>
-        <Btn onClick={onAdd}>
-          <Plus size={15} /> Add item
-        </Btn>
-      </div>
+  const pendingDeals = items.filter((i) => i.dealStatus === "pending");
 
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-100">
-            <th className="py-2 font-semibold">Item</th>
-            <th className="py-2 font-semibold">SKU</th>
-            <th className="py-2 font-semibold">Warehouse</th>
-            <th className="py-2 font-semibold">Cost / Price</th>
-            <th className="py-2 font-semibold">Qty</th>
-            <th className="py-2 font-semibold">Status</th>
-            <th className="py-2 font-semibold">Expiry</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((i) => (
-            <tr key={i.id} className="border-b border-slate-50 hover:bg-slate-50/60">
-              <td className="py-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: catColor(i.category) }} />
-                  <div>
-                    <div className="font-medium text-slate-700">{i.name}</div>
-                    <div className="text-[11px] text-slate-400">{i.category}</div>
-                  </div>
+  return (
+    <div className="space-y-6">
+      {role === "Admin" && pendingDeals.length > 0 && (
+        <Card className="p-5 border-amber-200">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle size={16} className="text-amber-600" />
+            <h3 className="font-[Manrope] font-bold text-sm text-slate-700">Deals awaiting your approval</h3>
+          </div>
+          <div className="space-y-2">
+            {pendingDeals.map((i) => (
+              <div key={i.id} className="flex items-center justify-between border border-amber-100 bg-amber-50/50 rounded-lg p-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-700">{i.name} — {i.dealPercent}% off{i.dealWeek ? ` (${i.dealWeek})` : ""}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">{money(i.price)} → {money(i.price * (1 - i.dealPercent / 100))}</div>
                 </div>
-              </td>
-              <td className="font-mono text-xs text-slate-500">{i.sku}</td>
-              <td className="text-slate-500 text-xs">{warehouseName(i.warehouseId)}</td>
-              <td className="font-mono text-xs text-slate-600">{i.cost} / {i.price}</td>
-              <td className="font-mono font-semibold text-slate-700">{i.qty} <span className="text-slate-400 font-normal">{i.unit}</span></td>
-              <td><StockPulse qty={i.qty} reorder={i.reorder} /></td>
-              <td className="text-xs text-slate-400">{i.expiry || "—"}</td>
-              <td>
-                <div className="flex gap-1">
-                  <button onClick={() => onEdit(i)} className="p-1.5 text-slate-400 hover:text-blue-700 hover:bg-blue-50 rounded"><Pencil size={13} /></button>
-                  <button onClick={() => onDelete(i.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={13} /></button>
+                <div className="flex gap-2">
+                  <Btn variant="outline" onClick={() => onRejectDeal(i.id)}>Reject</Btn>
+                  <Btn onClick={() => onApproveDeal(i.id)}>Approve</Btn>
                 </div>
-              </td>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      <Card className="p-5">
+        <div className="flex items-center justify-between mb-4 gap-3">
+          <div className="flex items-center gap-2 flex-1">
+            <div className="relative flex-1 max-w-xs">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search by name or SKU"
+                className={`${inputCls} pl-8 w-full`}
+              />
+            </div>
+            <select value={cat} onChange={(e) => setCat(e.target.value)} className={inputCls}>
+              {categories.map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <Btn onClick={onAdd}>
+            <Plus size={15} /> Add item
+          </Btn>
+        </div>
+
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-100">
+              <th className="py-2 font-semibold">Item</th>
+              <th className="py-2 font-semibold">SKU</th>
+              <th className="py-2 font-semibold">Warehouse</th>
+              <th className="py-2 font-semibold">Cost / Price</th>
+              <th className="py-2 font-semibold">Qty</th>
+              <th className="py-2 font-semibold">Status</th>
+              <th className="py-2 font-semibold">Weekly deal</th>
+              <th></th>
             </tr>
-          ))}
-          {filtered.length === 0 && (
-            <tr><td colSpan={8} className="text-center py-10 text-slate-400 text-sm">
-              <Search size={22} className="mx-auto mb-2 text-slate-300" />
-              No items match your search.
-            </td></tr>
-          )}
-        </tbody>
-      </table>
-    </Card>
+          </thead>
+          <tbody>
+            {filtered.map((i) => (
+              <tr key={i.id} className="border-b border-slate-50 hover:bg-slate-50/60">
+                <td className="py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: catColor(i.category) }} />
+                    <div>
+                      <div className="font-medium text-slate-700">{i.name}</div>
+                      <div className="text-[11px] text-slate-400">{i.category}</div>
+                    </div>
+                  </div>
+                </td>
+                <td className="font-mono text-xs text-slate-500">{i.sku}</td>
+                <td className="text-slate-500 text-xs">{warehouseName(i.warehouseId)}</td>
+                <td className="font-mono text-xs text-slate-600">{i.cost} / {i.price}</td>
+                <td className="font-mono font-semibold text-slate-700">{i.qty} <span className="text-slate-400 font-normal">{i.unit}</span></td>
+                <td><StockPulse qty={i.qty} reorder={i.reorder} /></td>
+                <td>
+                  {i.dealStatus === "approved" ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold">-{i.dealPercent}% live</span>
+                      {role === "Admin" && (
+                        <button onClick={() => onEndDeal(i.id)} className="text-[11px] text-slate-400 hover:text-red-600">End</button>
+                      )}
+                    </div>
+                  ) : i.dealStatus === "pending" ? (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-semibold">Pending review</span>
+                  ) : (
+                    <button onClick={() => setDealModalItem(i)} className="text-[11px] text-blue-700 font-semibold hover:underline">
+                      Propose deal
+                    </button>
+                  )}
+                </td>
+                <td>
+                  <div className="flex gap-1">
+                    <button onClick={() => onEdit(i)} className="p-1.5 text-slate-400 hover:text-blue-700 hover:bg-blue-50 rounded"><Pencil size={13} /></button>
+                    <button onClick={() => onDelete(i.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={13} /></button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr><td colSpan={8} className="text-center py-10 text-slate-400 text-sm">
+                <Search size={22} className="mx-auto mb-2 text-slate-300" />
+                No items match your search.
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </Card>
+
+      {dealModalItem && (
+        <DealModal
+          item={dealModalItem}
+          onClose={() => setDealModalItem(null)}
+          onSubmit={(percent, week) => {
+            onProposeDeal(dealModalItem.id, percent, week);
+            setDealModalItem(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function DealModal({ item, onClose, onSubmit }) {
+  const [percent, setPercent] = useState(10);
+  const [week, setWeek] = useState("");
+  return (
+    <Modal title={`Propose a deal — ${item.name}`} onClose={onClose}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit(Number(percent), week);
+        }}
+        className="flex flex-col gap-4"
+      >
+        <Field label="Discount percentage">
+          <input required type="number" min={1} max={90} className={`${inputCls} font-mono`} value={percent} onChange={(e) => setPercent(e.target.value)} />
+        </Field>
+        <Field label="Week label (e.g. Aug 3–9)">
+          <input required className={inputCls} value={week} onChange={(e) => setWeek(e.target.value)} placeholder="This week" />
+        </Field>
+        <p className="text-xs text-slate-500">
+          {money(item.price)} → <span className="font-semibold text-emerald-700">{money(item.price * (1 - Number(percent || 0) / 100))}</span>
+        </p>
+        <p className="text-[11px] text-slate-400">This will need Admin approval before it appears on the public storefront.</p>
+        <div className="flex justify-end gap-2 pt-2">
+          <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+          <Btn type="submit">Submit for approval</Btn>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -786,6 +1210,10 @@ function ItemFormModal({ item, warehouses, onClose, onSave }) {
     </Modal>
   );
 }
+
+/* ---------------------------------------------------------------------- */
+/* Stock & Warehouses                                                       */
+/* ---------------------------------------------------------------------- */
 
 function StockView({ items, warehouses, onTransfer, warehouseName }) {
   return (
@@ -866,6 +1294,10 @@ function TransferModal({ items, warehouses, onClose, onSubmit }) {
     </Modal>
   );
 }
+
+/* ---------------------------------------------------------------------- */
+/* Purchases & Suppliers                                                    */
+/* ---------------------------------------------------------------------- */
 
 function PurchasesView({ suppliers, purchaseOrders, onNewPO, supplierName, onAddSupplier }) {
   const [supplierModal, setSupplierModal] = useState(false);
@@ -967,10 +1399,39 @@ function POModal({ items, suppliers, onClose, onSubmit }) {
   );
 }
 
-function SalesView({ sales, customers, onNewSale, customerName, onAddCustomer }) {
+/* ---------------------------------------------------------------------- */
+/* Sales & Customers                                                        */
+/* ---------------------------------------------------------------------- */
+
+function SalesView({ sales, customers, onNewSale, customerName, onAddCustomer, role, onApproveSale, onRejectSale }) {
   const [customerModal, setCustomerModal] = useState(false);
+  const pendingSales = sales.filter((s) => s.status === "pending");
+
   return (
     <div className="space-y-6">
+      {role === "Admin" && pendingSales.length > 0 && (
+        <Card className="p-5 border-amber-200">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle size={16} className="text-amber-600" />
+            <h3 className="font-[Manrope] font-bold text-sm text-slate-700">Sales awaiting your approval</h3>
+          </div>
+          <div className="space-y-2">
+            {pendingSales.map((s) => (
+              <div key={s.id} className="flex items-center justify-between border border-amber-100 bg-amber-50/50 rounded-lg p-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-700">{customerName(s.customerId)} · {money(s.total)}</div>
+                  <div className="text-[11px] text-slate-400 font-mono">{s.id} · {s.date} · {s.lines.length} item(s) · submitted by Cashier</div>
+                </div>
+                <div className="flex gap-2">
+                  <Btn variant="outline" onClick={() => onRejectSale(s.id)}>Reject</Btn>
+                  <Btn onClick={() => onApproveSale(s.id)}>Approve</Btn>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       <div className="grid grid-cols-3 gap-6">
         <Card className="col-span-2 p-5">
           <div className="flex items-center justify-between mb-4">
@@ -987,7 +1448,11 @@ function SalesView({ sales, customers, onNewSale, customerName, onAddCustomer })
               {sales.map((s) => (
                 <div key={s.id} className="flex items-center justify-between border border-slate-100 rounded-lg p-3">
                   <div>
-                    <div className="text-sm font-semibold text-slate-700">{customerName(s.customerId)}</div>
+                    <div className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                      {customerName(s.customerId)}
+                      {s.status === "pending" && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">PENDING</span>}
+                      {s.status === "rejected" && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold">REJECTED</span>}
+                    </div>
                     <div className="text-[11px] text-slate-400 font-mono">{s.id} · {s.date} · {s.lines.length} item(s)</div>
                   </div>
                   <div className="font-mono font-bold text-slate-700">{money(s.total)}</div>
@@ -1079,11 +1544,16 @@ function SaleModal({ items, customers, onClose, onSubmit }) {
 function ReceiptModal({ sale, items, customerName, onClose }) {
   const itemName = (id) => items.find((i) => i.id === id)?.name || "Item";
   return (
-    <Modal title="Sale complete" onClose={onClose}>
+    <Modal title={sale.status === "pending" ? "Sale submitted" : "Sale complete"} onClose={onClose}>
       <div id="receipt-print-area">
         <div className="flex items-center gap-2.5 justify-center mb-4">
           <BrandMark size={30} />
         </div>
+        {sale.status === "pending" && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-700 text-xs rounded-lg px-3 py-2 mb-4 text-center font-medium">
+            Waiting for Admin approval — stock won't update until it's approved.
+          </div>
+        )}
         <div className="text-center mb-4">
           <div className="text-xs text-slate-400 font-mono">{sale.id} · {sale.date}</div>
           <div className="text-sm text-slate-600 mt-0.5">Sold to <span className="font-semibold">{customerName(sale.customerId)}</span></div>
@@ -1129,22 +1599,27 @@ function SimpleFormModal({ title, fields, onClose, onSubmit }) {
   );
 }
 
+/* ---------------------------------------------------------------------- */
+/* Reports                                                                   */
+/* ---------------------------------------------------------------------- */
+
 function ReportsView({ items, sales }) {
+  const confirmedSales = sales.filter((s) => s.status !== "rejected" && s.status !== "pending");
   const stockData = items.map((i) => ({ name: i.name, value: i.qty * i.cost }));
 
   const soldQty = useMemo(() => {
     const m = {};
-    sales.forEach((s) => s.lines.forEach((l) => { m[l.itemId] = (m[l.itemId] || 0) + Number(l.qty); }));
+    confirmedSales.forEach((s) => s.lines.forEach((l) => { m[l.itemId] = (m[l.itemId] || 0) + Number(l.qty); }));
     return m;
-  }, [sales]);
+  }, [confirmedSales]);
 
   const movement = items
     .map((i) => ({ ...i, sold: soldQty[i.id] || 0 }))
     .sort((a, b) => b.sold - a.sold);
 
   const totalCost = items.reduce((s, i) => s + i.qty * i.cost, 0);
-  const totalRevenue = sales.reduce((s, sale) => s + sale.total, 0);
-  const costOfGoodsSold = sales.reduce(
+  const totalRevenue = confirmedSales.reduce((s, sale) => s + sale.total, 0);
+  const costOfGoodsSold = confirmedSales.reduce(
     (s, sale) => s + sale.lines.reduce((ss, l) => ss + Number(l.qty) * (items.find((i) => i.id === l.itemId)?.cost || 0), 0),
     0
   );
@@ -1208,8 +1683,14 @@ function ReportsView({ items, sales }) {
   );
 }
 
-function UsersView({ audit, onReset, permissions, onToggleModule, onAddDepartment, onRemoveDepartment }) {
+/* ---------------------------------------------------------------------- */
+/* Users & Roles / Audit trail                                              */
+/* ---------------------------------------------------------------------- */
+
+function UsersView({ audit, onReset, permissions, onToggleModule, onAddDepartment, onRemoveDepartment, allRoles, userRoles, onAssignRole, onRemoveUserRole }) {
   const [newDept, setNewDept] = useState("");
+  const [assignEmail, setAssignEmail] = useState("");
+  const [assignRole, setAssignRole] = useState(allRoles?.[0] || "Admin");
   const departments = Object.keys(permissions);
 
   return (
@@ -1236,6 +1717,7 @@ function UsersView({ audit, onReset, permissions, onToggleModule, onAddDepartmen
               </tr>
             </thead>
             <tbody>
+              {/* Admin row — fixed, not editable */}
               <tr className="bg-blue-50/50">
                 <td className="py-2.5 pr-4 rounded-l-lg">
                   <div className="flex items-center gap-2">
@@ -1305,6 +1787,51 @@ function UsersView({ audit, onReset, permissions, onToggleModule, onAddDepartmen
             className={`${inputCls} flex-1 max-w-xs`}
           />
           <Btn type="submit" variant="outline"><Plus size={14} /> Add department</Btn>
+        </form>
+      </Card>
+
+      <Card className="p-5">
+        <h3 className="font-[Manrope] font-bold text-sm text-slate-700 mb-1">Team access</h3>
+        <p className="text-xs text-slate-500 mb-4 max-w-2xl">
+          First create the person's login in the Firebase console (Authentication → Users → Add user), then assign their email to a department here — that's what they'll see the moment they sign in.
+        </p>
+        <div className="space-y-2 mb-4">
+          {(!userRoles || userRoles.length === 0) && (
+            <p className="text-sm text-slate-400">No accounts assigned yet.</p>
+          )}
+          {userRoles && userRoles.map((u) => (
+            <div key={u.email} className="flex items-center justify-between text-sm border-b border-slate-50 pb-2">
+              <span className="text-slate-700">{u.email}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold">{u.role}</span>
+                <button onClick={() => onRemoveUserRole(u.email)} className="p-1 text-slate-400 hover:text-red-600" title={`Remove access for ${u.email}`}>
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!assignEmail.trim()) return;
+            onAssignRole(assignEmail, assignRole);
+            setAssignEmail("");
+          }}
+          className="flex items-center gap-2 flex-wrap"
+        >
+          <input
+            type="email"
+            required
+            placeholder="person@email.com"
+            value={assignEmail}
+            onChange={(e) => setAssignEmail(e.target.value)}
+            className={`${inputCls} flex-1 min-w-[180px]`}
+          />
+          <select value={assignRole} onChange={(e) => setAssignRole(e.target.value)} className={inputCls}>
+            {(allRoles || ["Admin"]).map((r) => <option key={r}>{r}</option>)}
+          </select>
+          <Btn type="submit" variant="outline"><Plus size={14} /> Assign</Btn>
         </form>
       </Card>
 
