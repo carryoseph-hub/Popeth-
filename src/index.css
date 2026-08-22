@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap");
+
+body {
+  margin: 0;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #print-area,
+  #print-area * {
+    visibility: visible;
+  }
+  #print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}
+
+/* ---------- Dark mode ---------- */
+/* Applied by adding the "app-dark" class to the internal dashboard's
+   outer wrapper. It re-colors the common Tailwind utility classes used
+   throughout the app, so we don't have to add dark: variants to every
+   single element individually. */
+.app-dark {
+  background-color: #0b1220 !important;
+  color: #e2e8f0;
+}
+.app-dark .bg-\[\#F5F6F8\] {
+  background-color: #0b1220 !important;
+}
+.app-dark .bg-white {
+  background-color: #151e2e !important;
+}
+.app-dark .bg-slate-50,
+.app-dark .bg-slate-50\/60,
+.app-dark .bg-amber-50\/50 {
+  background-color: #1b2536 !important;
+}
+.app-dark .text-slate-800,
+.app-dark .text-slate-700 {
+  color: #e2e8f0 !important;
+}
+.app-dark .text-slate-600,
+.app-dark .text-slate-500 {
+  color: #b6c2d4 !important;
+}
+.app-dark .text-slate-400 {
+  color: #7f8ea3 !important;
+}
+.app-dark .border-slate-50,
+.app-dark .border-slate-100,
+.app-dark .border-slate-200,
+.app-dark .border-slate-200\/80 {
+  border-color: #253145 !important;
+}
+.app-dark input,
+.app-dark select,
+.app-dark textarea {
+  background-color: #101a29 !important;
+  color: #e2e8f0 !important;
+  border-color: #2a3648 !important;
+}
+.app-dark table thead tr {
+  border-color: #253145 !important;
+}
+.app-dark .hover\:bg-slate-50:hover,
+.app-dark .hover\:bg-slate-100:hover {
+  background-color: #1b2536 !important;
+}
+.app-dark .shadow-sm,
+.app-dark .shadow-lg,
+.app-dark .shadow-2xl {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4) !important;
+}
